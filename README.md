@@ -52,6 +52,11 @@ Lurak intentionally avoids becoming another monolithic scanner. Instead, it's a 
 
 ---
 
+## development
+Development happens locally until the project reaches a usable state, then published as a complete initial release.
+
+---
+
 ## Features
 
 - Interactive terminal interface
