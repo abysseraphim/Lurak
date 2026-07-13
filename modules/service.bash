@@ -78,6 +78,10 @@ EOF
     local HTTP=0
     local SSH=0
     local HTTPS=0
+    local FTP=0
+    local SMTP=0
+    local DB=0
+    local RDP=0
 
     local discovered
 
@@ -94,6 +98,18 @@ EOF
         elif [[ "$service" == "HTTPS" ]]
         then
             (( HTTPS++ ))
+        elif [[ "$service" == "FTP" ]]
+        then 
+            (( FTP++ ))
+        elif [[ "$service" == "SMTP" ]]
+        then 
+            (( SMTP++ ))
+        elif [[ "$service" =~ ^(MySQL|PostgreSQL|Redis|MongoDB)$ ]]
+        then 
+            (( DB++ ))
+        elif [[ "$service" == "RDP" ]]
+        then 
+            (( RDP++ ))
         fi
     done
 
@@ -106,6 +122,10 @@ EOF
         echo "    HTTP:      $(printf "%b" "$BRIGHT_WHITE") $HTTP $(printf "%b" "$BRIGHT_PURPLE")"
         echo "    HTTPS:     $(printf "%b" "$BRIGHT_WHITE") $HTTPS $(printf "%b" "$BRIGHT_PURPLE")"
         echo "    SSH:       $(printf "%b" "$BRIGHT_WHITE") $SSH $(printf "%b" "$RESET")"
+        echo "    FTP:       $(printf "%b" "$BRIGHT_WHITE") $FTP $(printf "%b" "$BRIGHT_PURPLE")"
+        echo "    SMTP:      $(printf "%b" "$BRIGHT_WHITE") $SMTP $(printf "%b" "$BRIGHT_PURPLE")"
+        echo "    Database:  $(printf "%b" "$BRIGHT_WHITE") $DB $(printf "%b" "$BRIGHT_PURPLE")"
+        echo "    RDP:       $(printf "%b" "$BRIGHT_WHITE") $RDP $(printf "%b" "$RESET")"
         printf "%b" "$RESET"
 
     echo
@@ -145,7 +165,11 @@ EOF
     "summary": {
         "http_services": $HTTP,
         "https_services": $HTTPS,
-        "ssh_services": $SSH
+        "ssh_services": $SSH,
+        "ftp_services": $FTP,
+        "smtp_services": $SMTP,
+        "db_services": $DB,
+        "rdp_services": $RDP
     },
     "results": [
 $results_json
@@ -162,22 +186,33 @@ EOF
 }
 
 discover_service() {
-
     local ip="$1"
     local port="$2"
 
     case "$port" in
+        21)
+            discover_ftp "$ip" "$port" 
+            ;;
         22)
-            discover_ssh "$ip" "$port"
+            discover_ssh "$ip" "$port" 
+            ;;
+        25|587)
+            discover_smtp "$ip" "$port" 
             ;;
         80|8080|9090)
-            discover_http "$ip" "$port"
+            discover_http "$ip" "$port" 
             ;;
         443|8443)
-            discover_https "$ip" "$port"
+            discover_https "$ip" "$port" 
+            ;;
+        3306|5432|6379|27017)
+            discover_db "$ip" "$port" 
+            ;;
+        3389)
+            discover_rdp "$ip" "$port" 
             ;;
         *)
-            :
+            : 
             ;;
     esac
 }
@@ -243,3 +278,80 @@ discover_https() {
 
     SERVICE_DISCOVERY_RESULTS+=("$ip:$port|HTTPS|$status|$server")
 }
+
+discover_ftp() {
+    local ip="$1"
+    local port="$2"
+
+    local banner
+    banner=$(nc -nv -w 3 "$ip" "$port" 2>/dev/null | head -n1 | tr -d '\r\n')
+
+    [[ "$banner" != 220* ]] && return
+    printf "%b" "$BRIGHT_GREEN"
+    print_info "[+] $ip:$port -> FTP | $banner"
+    printf "%b" "$BRIGHT_WHITE"
+
+    SERVICE_DISCOVERY_RESULTS+=("$ip:$port|FTP|$banner|")
+}
+
+discover_smtp() {
+    local ip="$1"
+    local port="$2"
+
+    local banner
+    banner=$(nc -nv -w 3 "$ip" "$port" 2>/dev/null | head -n1 | tr -d '\r\n')
+
+    [[ "$banner" != 220* ]] && return
+    printf "%b" "$BRIGHT_GREEN"
+    print_info "[+] $ip:$port -> SMTP | $banner"
+    printf "%b" "$BRIGHT_WHITE"
+
+    SERVICE_DISCOVERY_RESULTS+=("$ip:$port|SMTP|$banner|")
+}
+
+discover_db() {
+    local ip="$1"
+    local port="$2"
+
+    local service
+    case "$port" in
+        3306)
+            service="MySQL" 
+            ;;
+        5432)
+            service="PostgreSQL"
+            ;;
+        6379)
+            service="Redis" 
+            ;;
+        27017)
+            service="MongoDB"
+            ;;
+        *)
+            return 
+            ;;
+    esac
+
+    local result
+    if result=$(nc -nv -w 3 "$ip" "$port" </dev/null 2>/dev/null | head -n1 | tr -d '\r\n') # some databases share no banner, so i decided that successful connection means there is something in there.
+    then 
+        printf "%b" "$BRIGHT_GREEN"
+        print_info "[+] $ip:$port -> $service ${result:+| $result}"
+        printf "%b" "$BRIGHT_WHITE"
+        SERVICE_DISCOVERY_RESULTS+=("$ip:$port|$service|$result|")
+    fi
+}
+
+discover_rdp() {
+    local ip="$1"
+    local port="$2"
+
+    if nc -nv -w 3 "$ip" "$port" </dev/null 2>/dev/null
+    then
+        printf "%b" "$BRIGHT_GREEN"
+        print_info "[+] $ip:$port -> RDP"
+        printf "%b" "$BRIGHT_WHITE"
+        SERVICE_DISCOVERY_RESULTS+=("$ip:$port|RDP||")
+    fi
+}
+

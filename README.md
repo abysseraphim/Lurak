@@ -160,12 +160,23 @@ Scans an entire CIDR range for open ports using `naabu`. Resolves the CIDR from 
 ---
 
 ### [5] Service Discovery
-Reads the CIDR port scan output and probes each open endpoint to fingerprint services.
-- **Port 22:** grabs the SSH banner via `nc`
-- **Port 80/81/8080/...:** sends an HTTP HEAD request via `curl`, extracts status code and `Server` header
-- **Port 443/8443:** same over HTTPS (`-k` for self-signed certs)
 
-Requires CIDR port scan (option 4) to have been run first.
+Reads the CIDR port scan output and fingerprints common services running on discovered open ports.
+
+Supported protocols:
+- **SSH (22):** grabs the SSH banner via `nc`
+- **HTTP (80/8080/9090):** sends an HTTP HEAD request via `curl`, extracts the status code and `Server` header
+- **HTTPS (443/8443):** same over HTTPS (`-k` for self-signed certificates)
+- **FTP (21):** captures the FTP welcome banner
+- **SMTP (25/587):** captures the SMTP greeting banner
+- **Databases**
+  - MySQL (3306)
+  - PostgreSQL (5432)
+  - Redis (6379)
+  - MongoDB (27017)
+- **RDP (3389):** verifies TCP connectivity
+
+Requires CIDR Port Scan (option 4) to be completed beforehand.
 
 **Tools:** `curl`, `nc`, `dig`, `jq`
 
